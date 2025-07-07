@@ -10,6 +10,7 @@ def run_dashboard():
     from data.miner_data import load_data, update_csv
     from scrape.miner_scraper import scrape_miner_specs
     from utils.cleaning import clean_and_normalize
+    from utils.scoring import calculate_miner_scores
     from data.btc_api import fetch_btc_prices
 
     st.title("Bitcoin Miner Scraper & Dashboard")
@@ -90,6 +91,33 @@ def run_dashboard():
     csv_data = df.to_csv(index=False).encode('utf-8')
     st.download_button("Download CSV", csv_data, file_name="updated_miners.csv", mime="text/csv")
 
+    # --- Miner Ranking Section ---
+    st.subheader("🏆 Top Ranked Miners by Composite Score (Hybrid Scaling Potential)")
+
+    # Hybrid weights: balancing investor + operator goals
+    weights = {
+        "eff_score": 0.3,
+        "cost_score": 0.25,
+        "profit_score": 0.2,
+        "margin_score": 0.15,
+        "age_score": 0.1
+    }
+    # Clean and convert columns first
+    df["daily_profit"] = pd.to_numeric(df["daily_profit"], errors="coerce")
+    df["daily_revenue"] = pd.to_numeric(df["daily_revenue"], errors="coerce")
+
+    df["margin"] = (df["daily_profit"] / df["daily_revenue"]) * 100
+    df_rank = calculate_miner_scores(df, weights)
+
+    if not df_rank.empty:
+        st.dataframe(df_rank[[
+            "model", "cost", "efficiency", "daily_profit", "margin",
+            "release year" if "release year" in df_rank.columns else df_rank.columns[0],
+            "overall_score", "rank"
+        ]].round(2))
+    else:
+        st.info("Insufficient data to rank miners. Make sure profit, cost, margin, and efficiency data is available.")
+
     # --- Charts ---
     st.subheader("📊 Miner Comparison Charts")
     df = clean_and_normalize(df)
@@ -104,13 +132,25 @@ def run_dashboard():
         st.plotly_chart(fig2, use_container_width=True)
 
         df_filtered = df.dropna(subset=['daily_profit', 'cost', 'efficiency'])
-        fig3 = px.scatter(df_filtered,
-                         x='efficiency',
-                         y='cost',
-                         size='daily_profit',
-                         color='margin',
-                         hover_name='model',
-                         title='Efficiency vs Cost vs Profit Margin')
+        fig3 = px.scatter(
+            df_filtered,
+            x='efficiency',
+            y='cost',
+            color='model',
+            hover_name='model',
+            title='Efficiency vs Cost'
+        )
         st.plotly_chart(fig3, use_container_width=True)
+
+        fig4 = px.scatter(
+            df_filtered,
+            x='cost',
+            y='margin',
+            size='daily_profit',
+            color='model',
+            hover_name='model',
+            title='Cost vs Profit Margin'
+        )
+        st.plotly_chart(fig4, use_container_width=True)
     else:
         st.info("No miner data to chart yet. Add or upload miners first.")
