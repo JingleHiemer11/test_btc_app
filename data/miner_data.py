@@ -2,13 +2,16 @@
 
 import os
 import pandas as pd
+from utils.cleaning import clean_and_normalize
 
 CSV_FILE = "Book123.csv"
 
 # --- Load CSV ---
 def load_data():
     if os.path.exists(CSV_FILE):
-        return pd.read_csv(CSV_FILE)
+        df = pd.read_csv(CSV_FILE)
+        df = clean_and_normalize(df)
+        return df
     else:
         return pd.DataFrame(columns=[
             "Model", "Manufacturer", "Hashrate (TH/s)", "Power (W)", "Efficiency (J/TH)",

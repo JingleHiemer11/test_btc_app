@@ -39,4 +39,9 @@ def clean_and_normalize(df):
     if {'cost', 'efficiency'}.issubset(df.columns):
         df['cost_per_efficiency'] = df['cost'] / df['efficiency']
 
+    # Add price difference calculations
+    if {'cost', 'expected_cost'}.issubset(df.columns):
+        df['price_diff_usd'] = df['cost'] - pd.to_numeric(df['expected_cost'], errors='coerce')
+        df['price_diff_pct'] = (df['price_diff_usd'] / pd.to_numeric(df['expected_cost'], errors='coerce')) * 100
+
     return df

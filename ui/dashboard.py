@@ -34,9 +34,12 @@ def run_dashboard():
 
     # --- Miner Data Section ---
     st.markdown("Upload your miner CSV, scrape specs, or add miners manually.")
+    df = clean_and_normalize(pd.read_csv("Book123.csv"))
 
-    df = load_data()
-    st.subheader("📄 Current Miner Database")
+    # Optional formatting for display only
+    if "price_diff_pct" in df.columns:
+        df["price_diff_pct_display"] = df["price_diff_pct"].map("{:.2f}%".format)
+    
     st.dataframe(df)
 
     # Upload CSV
@@ -109,12 +112,18 @@ def run_dashboard():
     df["margin"] = (df["daily_profit"] / df["daily_revenue"]) * 100
     df_rank = calculate_miner_scores(df, weights)
 
+    # List of columns to show
+    cols = [
+        "model", "cost", "efficiency", "daily_profit", "margin",
+        "release year", "overall_score", "rank"
+    ]
+
+    # Remove duplicates and ensure all columns exist
+    cols = list(dict.fromkeys(cols))  # removes duplicates
+    cols = [col for col in cols if col in df_rank.columns]
+
     if not df_rank.empty:
-        st.dataframe(df_rank[[
-            "model", "cost", "efficiency", "daily_profit", "margin",
-            "release year" if "release year" in df_rank.columns else df_rank.columns[0],
-            "overall_score", "rank"
-        ]].round(2))
+        st.dataframe(df_rank[cols].round(2))
     else:
         st.info("Insufficient data to rank miners. Make sure profit, cost, margin, and efficiency data is available.")
 
