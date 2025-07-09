@@ -163,3 +163,55 @@ def run_dashboard():
         st.plotly_chart(fig4, use_container_width=True)
     else:
         st.info("No miner data to chart yet. Add or upload miners first.")
+
+    # === BTC Investment Scenario Simulator ===
+    st.subheader("💡 BTC Investment Strategy Simulator")
+
+    from logic.inputs import get_user_inputs
+    from logic.simulate import simulate_all_scenarios
+
+    if not df.empty:
+        df_miner_db = df[["model", "cost", "hashrate", "power"]].dropna().copy()
+        df_miner_db.rename(columns={
+            "hashrate": "hashrate_ths",
+            "power": "power_kw"
+        }, inplace=True)
+        user_inputs = get_user_inputs(df_miner_db)
+    else:
+        st.warning("⚠️ No valid miner data available. Please upload or enter at least one miner to continue.")
+        return
+
+    df_scenarios = simulate_all_scenarios(user_inputs)
+    
+    selected_strategies = st.multiselect(
+        "Select strategy/scenarios to compare",
+        options=df_scenarios["Scenario"].unique().tolist(),
+        default=["HODL"],
+        key="strategy_selector"  # ✅ Give this multiselect a unique key
+    )
+
+    if not df_scenarios.empty and "Year" in df_scenarios.columns and selected_strategies:
+        # ✅ Do NOT set_index("Year")
+        df_filtered = df_scenarios[df_scenarios["Scenario"].isin(selected_strategies)].copy()
+
+        fig = px.line(
+            df_filtered,
+            x="Year",
+            y="BTC Value ($)",
+            color="Scenario",
+            title="BTC Value Over Time by Strategy"
+        )
+        fig.update_layout(
+            yaxis=dict(range=[0, df_filtered["BTC Value ($)"].max() * 1.1]),
+            xaxis_title="Year",
+            yaxis_title="BTC Value ($)",
+            title_font_size=20,
+            margin=dict(l=40, r=40, t=60, b=40)
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(df_filtered)
+    else:
+        st.warning("⚠️ No scenario data to display or selected.")    
+    
+    df_filtered = df_scenarios[df_scenarios["Scenario"].isin(selected_strategies)].copy()
