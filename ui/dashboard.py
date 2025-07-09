@@ -94,38 +94,39 @@ def run_dashboard():
     csv_data = df.to_csv(index=False).encode('utf-8')
     st.download_button("Download CSV", csv_data, file_name="updated_miners.csv", mime="text/csv")
 
+    # TODO: Rework ranking logic later to reflect real-world hybrid investment priorities
     # --- Miner Ranking Section ---
-    st.subheader("🏆 Top Ranked Miners by Composite Score (Hybrid Scaling Potential)")
+    #st.subheader("🏆 Top Ranked Miners by Composite Score (Hybrid Scaling Potential)")
 
     # Hybrid weights: balancing investor + operator goals
-    weights = {
-        "eff_score": 0.3,
-        "cost_score": 0.25,
-        "profit_score": 0.2,
-        "margin_score": 0.15,
-        "age_score": 0.1
-    }
+    #weights = {
+    #    "eff_score": 0.3,
+    #    "cost_score": 0.25,
+    #    "profit_score": 0.2,
+    #    "margin_score": 0.15,
+    #    "age_score": 0.1
+    #}
     # Clean and convert columns first
-    df["daily_profit"] = pd.to_numeric(df["daily_profit"], errors="coerce")
-    df["daily_revenue"] = pd.to_numeric(df["daily_revenue"], errors="coerce")
+    #df["daily_profit"] = pd.to_numeric(df["daily_profit"], errors="coerce")
+    #df["daily_revenue"] = pd.to_numeric(df["daily_revenue"], errors="coerce")
 
-    df["margin"] = (df["daily_profit"] / df["daily_revenue"]) * 100
-    df_rank = calculate_miner_scores(df, weights)
+    #df["margin"] = (df["daily_profit"] / df["daily_revenue"]) * 100
+    #df_rank = calculate_miner_scores(df, weights)
 
     # List of columns to show
-    cols = [
-        "model", "cost", "efficiency", "daily_profit", "margin",
-        "release year", "overall_score", "rank"
-    ]
+    #cols = [
+    #    "model", "cost", "efficiency", "daily_profit", "margin",
+    #    "release year", "overall_score", "rank"
+    #]
 
     # Remove duplicates and ensure all columns exist
-    cols = list(dict.fromkeys(cols))  # removes duplicates
-    cols = [col for col in cols if col in df_rank.columns]
+    #cols = list(dict.fromkeys(cols))  # removes duplicates
+    #cols = [col for col in cols if col in df_rank.columns]
 
-    if not df_rank.empty:
-        st.dataframe(df_rank[cols].round(2))
-    else:
-        st.info("Insufficient data to rank miners. Make sure profit, cost, margin, and efficiency data is available.")
+    #if not df_rank.empty:
+    #    st.dataframe(df_rank[cols].round(2))
+    #else:
+    #    st.info("Insufficient data to rank miners. Make sure profit, cost, margin, and efficiency data is available.")
 
     # --- Charts ---
     st.subheader("📊 Miner Comparison Charts")
@@ -191,20 +192,23 @@ def run_dashboard():
     )
 
     if not df_scenarios.empty and "Year" in df_scenarios.columns and selected_strategies:
-        # ✅ Do NOT set_index("Year")
         df_filtered = df_scenarios[df_scenarios["Scenario"].isin(selected_strategies)].copy()
 
         fig = px.line(
             df_filtered,
             x="Year",
-            y="BTC Value ($)",
+            y=["ROI ($)"],
             color="Scenario",
-            title="BTC Value Over Time by Strategy"
+            title="ROI Over Time by Strategy"
         )
+        
+        y_min = min(df_filtered["ROI ($)"].min(), 0)
+        y_max = df_filtered["ROI ($)"].max() * 1.1  # Add padding to top
+
         fig.update_layout(
-            yaxis=dict(range=[0, df_filtered["BTC Value ($)"].max() * 1.1]),
+            yaxis=dict(range=[y_min, y_max]),
             xaxis_title="Year",
-            yaxis_title="BTC Value ($)",
+            yaxis_title="ROI ($)",
             title_font_size=20,
             margin=dict(l=40, r=40, t=60, b=40)
         )

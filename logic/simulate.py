@@ -40,7 +40,8 @@ def simulate_scenario(
     hashrate_ths = miner_count * miner_hashrate_ths
     power_kw = miner_count * miner_power_kw
     network_hashrate_ths = network_hashrate_ehs * 1_000_000
-
+    cumulative_energy_cost = 0.0  # Track total electricity cost over all years
+    
     results = []
 
     for year in range(1, years + 1):
@@ -49,15 +50,17 @@ def simulate_scenario(
 
         share = hashrate_ths / network_hashrate_ths if network_hashrate_ths > 0 else 0.0
         btc_mined = share * BLOCKS_PER_DAY * reward * DAYS_PER_YEAR
-        energy_cost = power_kw * 24 * 365 * electricity_rate
-
+        energy_cost = power_kw * 24 * 365 * electricity_rate #annual electric cost
+        cumulative_energy_cost += energy_cost  # accumulate electric cost
+        
         btc_held += btc_mined
         btc_price *= (1 + btc_cagr / 100)
-        btc_value = btc_held * btc_price
-        roi = btc_value - initial_investment
+        
+        # You can calculate ROI based on BTC held value and initial investment and costs
+        roi = (btc_held * btc_price) - initial_investment - cumulative_energy_cost
         if scenario != "HODL":
             roi -= loan_amount
-
+        
         results.append({
             "Year": year,
             "Scenario": scenario,
@@ -65,7 +68,6 @@ def simulate_scenario(
             "BTC Held": btc_held,
             "BTC Mined": btc_mined,
             "Energy Cost ($)": energy_cost,
-            "BTC Value ($)": btc_value,
             "ROI ($)": roi
         })
 
