@@ -12,7 +12,7 @@ def get_user_inputs(df_miners):
     initial_investment = st.sidebar.number_input("Initial Investment ($)", value=100_000.0)
 
     electricity_rate = st.sidebar.number_input("Electricity Rate ($/kWh)", value=0.01)
-    years = st.sidebar.slider("Years to Simulate", 1, 40, 31)
+    years = st.sidebar.slider("Years to Simulate", 1, 40, 30)
     block_reward = st.sidebar.number_input("Current Block Reward", value=3.125)
     network_hashrate_ehs = st.sidebar.number_input("Network Hashrate (EH/s)", value=1000.0)
     btc_cagr = st.sidebar.number_input("BTC CAGR (%)", value=15.0)
