@@ -23,25 +23,29 @@ def clean_and_normalize(df):
         "break-even (months)": "break_even"
     }, inplace=True)
 
-    cols_to_clean = ['daily_profit', 'daily_revenue', 'cost']
-    for col in cols_to_clean:
+    # Clean currency-formatted columns
+    currency_cols = [
+        'daily_profit', 'daily_revenue', 'cost',
+        'cost_per_hash', 'expected_cost', 'excost_per_hash', 'price_diff_usd'
+    ]
+    for col in currency_cols:
         if col in df.columns:
             df[col] = df[col].replace('[\$,]', '', regex=True)
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
-    numeric_cols = ['power', 'hashrate', 'efficiency', 'noise_level']
+    # Clean percentage-formatted columns
+    if "margin_percent" in df.columns:
+        df["margin_percent"] = (
+            df["margin_percent"].replace('%', '', regex=True).astype(float)
+        )
+
+    if "price_diff_pct" in df.columns:
+        df["price_diff_pct"] = df["price_diff_pct"].astype(float) * 100
+    
+    # Clean directly numeric columns
+    numeric_cols = ['power', 'hashrate', 'efficiency', 'noise_level', 'break_even']
     for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    if {'daily_profit', 'daily_revenue'}.issubset(df.columns):
-        df['margin'] = (df['daily_profit'] / df['daily_revenue']) * 100
-    if {'cost', 'efficiency'}.issubset(df.columns):
-        df['cost_per_efficiency'] = df['cost'] / df['efficiency']
-
-    # Add price difference calculations
-    if {'cost', 'expected_cost'}.issubset(df.columns):
-        df['price_diff_usd'] = df['cost'] - pd.to_numeric(df['expected_cost'], errors='coerce')
-        df['price_diff_pct'] = (df['price_diff_usd'] / pd.to_numeric(df['expected_cost'], errors='coerce')) * 100
 
     return df
