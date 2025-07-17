@@ -2,6 +2,9 @@ from typing import Optional, Dict, Any
 import streamlit as st
 import pandas as pd
 
+for key in st.session_state.keys():
+    del st.session_state[key]
+
 def get_user_inputs(df_miners: pd.DataFrame, live_btc_price: Optional[float] = None) -> Dict[str, Any]:
     # Miner selection
     miner_options = ["Manual Input"] + df_miners["model"].dropna().unique().tolist()
@@ -33,7 +36,7 @@ def get_user_inputs(df_miners: pd.DataFrame, live_btc_price: Optional[float] = N
     block_rewards = [50 / (2 ** i) for i in range(33)]  # [50, 25, 12.5, ..., ~0.0488]
     block_reward = st.sidebar.selectbox("Block Reward (BTC)", block_rewards, index=4, format_func=lambda x: f"{x:.8f}")
     network_hashrate_ehs = st.sidebar.number_input("Network Hashrate (EH/s)", value=1000.0)
-    fees_btc = st.sidebar.number_input("Daily Network Fees (BTC)", value=0.025, step=0.0001, format="%.8f")
+    fees_btc = st.sidebar.number_input("Daily Network Fees (BTC)", value=0.025, step=0.0001, format="%.3f", key="fees_btc")
     btc_cagr = st.sidebar.number_input("BTC CAGR (%)", value=15.0)
 
 
