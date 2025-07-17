@@ -50,8 +50,10 @@ def run_dashboard():
 
     # Prepare df_miner_db for inputs and scenarios
     df_miner_db = df[["model", "cost", "hashrate", "power"]].dropna().copy()
-    df_miner_db.rename(columns={"hashrate": "hashrate_ths", "power": "power_kw"}, inplace=True)
-
+    df_miner_db["power_kw"] = df_miner_db["power"] / 1000  # watts to kilowatts
+    df_miner_db.rename(columns={"hashrate": "hashrate_ths"}, inplace=True)
+    df_miner_db.drop(columns=["power"], inplace=True)
+    
     # Fetch live price for sidebar if needed
     prices = fetch_btc_prices(days=1)
     if prices:
@@ -230,8 +232,9 @@ def run_dashboard():
 
     if not df.empty:
         df_miner_db = df[["model", "cost", "hashrate", "power"]].dropna().copy()
-        df_miner_db.rename(columns={"hashrate": "hashrate_ths", "power": "power_kw"}, inplace=True)
-
+        df_miner_db["power_kw"] = df_miner_db["power"] / 1000  # Convert Watts to kW
+        df_miner_db.rename(columns={"hashrate": "hashrate_ths"}, inplace=True)
+        df_miner_db.drop(columns=["power"], inplace=True)
     else:
         st.warning("⚠️ No valid miner data available. Please upload or enter at least one miner to continue.")
         return

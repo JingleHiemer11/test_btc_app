@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import streamlit as st
 
 def simulate_scenario(
     scenario: str,
@@ -14,7 +15,8 @@ def simulate_scenario(
     network_hashrate_ehs: float,
     btc_cagr: float,
     difficulty: float = None,
-    fees_btc: float = 0.1
+    fees_btc: int = 0.025,
+    uptime: float = 0.95
 ):
     BLOCKS_PER_DAY = 144
     DAYS_PER_YEAR = 365
@@ -30,6 +32,7 @@ def simulate_scenario(
         btc_held = initial_investment / btc_price
     elif scenario == "Miners Only":
         miner_count = int(initial_investment / miner_cost)
+        st.write(f"⚡ Miner Power Input (kW): {miner_power_kw}, Count: {miner_count}")
     elif scenario == "BTC Loan":
         btc_held = initial_investment / btc_price
         loan_amount = 0.10 * initial_investment
@@ -55,16 +58,14 @@ def simulate_scenario(
         if difficulty is not None and difficulty > 0:
             # Convert miner hashrate TH/s to H/s
             hashrate_hs = hashrate_ths * 1e12
-            blocks_per_day = 144
-            uptime = 0.95
-            reward_per_block = reward + (fees_btc / blocks_per_day)
-            daily_btc_mined = (hashrate_hs * uptime * reward_per_block * blocks_per_day) / (difficulty * 2**32)
+            reward_per_block = reward + (fees_btc / BLOCKS_PER_DAY)
+            daily_btc_mined = (hashrate_hs * uptime * reward_per_block * BLOCKS_PER_DAY) / (difficulty * 2**32)
             btc_mined = daily_btc_mined * DAYS_PER_YEAR
         else:
             share = hashrate_ths / network_hashrate_ths if network_hashrate_ths > 0 else 0.0
             btc_mined = share * BLOCKS_PER_DAY * reward * DAYS_PER_YEAR
 
-        energy_cost = power_kw * 24 * 365 * electricity_rate
+        energy_cost = power_kw * 24 * 365 * electricity_rate * uptime
         cumulative_energy_cost += energy_cost
 
         btc_held += btc_mined
@@ -75,9 +76,15 @@ def simulate_scenario(
         if scenario != "HODL":
             roi -= loan_amount
 
-        yearly_profits.append(value_of_holdings - initial_investment - cumulative_energy_cost)
+        yearly_cashflow = value_of_holdings - initial_investment - cumulative_energy_cost - loan_amount
+        yearly_profits.append(yearly_cashflow)
 
         network_hashrate_ths *= NETWORK_GROWTH
+
+        try:
+            cagr = ((value_of_holdings / initial_investment) ** (1 / year) - 1) * 100
+        except:
+            cagr = None
 
         results.append({
             "Year": year,
@@ -86,7 +93,8 @@ def simulate_scenario(
             "BTC Held": btc_held,
             "BTC Mined": btc_mined,
             "Energy Cost ($)": energy_cost,
-            "ROI ($)": roi
+            "ROI ($)": roi,
+            "CAGR (%)": cagr
         })
 
     # After yearly results, calculate long-term metrics:
@@ -107,10 +115,16 @@ def simulate_scenario(
     annual_profit = total_profit / years
 
     for r in results:
-        r["IRR (%)"] = irr
-        r["CPBM (Months)"] = months_to_breakeven
-        r["PPI"] = ppi
-        r["Annual Profit"] = annual_profit
+        if scenario != "HODL":
+            r["IRR (%)"] = irr
+            r["CPBM (Months)"] = months_to_breakeven
+            r["PPI"] = ppi
+            r["Annual Profit"] = annual_profit
+        else:
+            r["IRR (%)"] = None
+            r["CPBM (Months)"] = None
+            r["PPI"] = None
+            r["Annual Profit"] = None
 
     return results
 
