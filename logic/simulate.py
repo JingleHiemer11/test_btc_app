@@ -15,7 +15,7 @@ def simulate_scenario(
     network_hashrate_ehs: float,
     btc_cagr: float,
     difficulty: float = None,
-    fees_btc: int = 0.025,
+    fees_btc: float = 0.025,
     uptime: float = 0.95
 ):
     BLOCKS_PER_DAY = 144
