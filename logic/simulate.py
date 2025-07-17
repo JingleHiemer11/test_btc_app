@@ -30,18 +30,21 @@ def simulate_scenario(
     # Initial strategy logic
     if scenario == "HODL":
         btc_held = initial_investment / btc_price
+        
     elif scenario == "Miners Only":
         miner_count = int(initial_investment / miner_cost)
-        st.write(f"⚡ Miner Power Input (kW): {miner_power_kw}, Count: {miner_count}")
+        
     elif scenario == "BTC Loan":
         btc_held = initial_investment / btc_price
         loan_amount = 0.10 * initial_investment
         miner_count = int(loan_amount / miner_cost)
+        
     elif scenario == "Hybrid":
         half = initial_investment / 2
         btc_held = half / btc_price
         loan_amount = 0.10 * half
         miner_count = int((half + loan_amount) / miner_cost)
+        
 
     hashrate_ths = miner_count * miner_hashrate_ths
     power_kw = miner_count * miner_power_kw
@@ -56,15 +59,18 @@ def simulate_scenario(
         reward = block_reward / (2 ** halvings_passed)
 
         if difficulty is not None and difficulty > 0:
+
             # Convert miner hashrate TH/s to H/s
             hashrate_hs = hashrate_ths * 1e12
-            reward_per_block = reward + (fees_btc / BLOCKS_PER_DAY)
-            daily_btc_mined = (hashrate_hs * uptime * reward_per_block * BLOCKS_PER_DAY) / (difficulty * 2**32)
+            reward_per_block = reward + fees_btc
+            daily_btc_mined = (hashrate_hs * uptime * reward_per_block * 86400) / (difficulty * 2**32)
             btc_mined = daily_btc_mined * DAYS_PER_YEAR
+
         else:
             share = hashrate_ths / network_hashrate_ths if network_hashrate_ths > 0 else 0.0
             btc_mined = share * BLOCKS_PER_DAY * reward * DAYS_PER_YEAR
-
+            daily_btc_mined = btc_mined / 365
+            
         energy_cost = power_kw * 24 * 365 * electricity_rate * uptime
         cumulative_energy_cost += energy_cost
 
@@ -91,7 +97,8 @@ def simulate_scenario(
             "Scenario": scenario,
             "BTC Price": btc_price,
             "BTC Held": btc_held,
-            "BTC Mined": btc_mined,
+            "btc_mined": btc_mined,
+            "daily_btc_mined": daily_btc_mined,
             "Energy Cost ($)": energy_cost,
             "ROI ($)": roi,
             "CAGR (%)": cagr
@@ -128,9 +135,8 @@ def simulate_scenario(
 
     return results
 
-def simulate_all_scenarios(user_inputs):
-    scenarios = ["HODL", "Miners Only", "BTC Loan", "Hybrid"]
-    
+def filter_simulate_inputs(user_inputs):
+    # Helper to filter only needed keys for simulate_scenario
     allowed_keys = {
         "initial_investment",
         "btc_price",
@@ -145,11 +151,19 @@ def simulate_all_scenarios(user_inputs):
         "difficulty",
         "fees_btc"
     }
-    
-    filtered_inputs = {k: v for k, v in user_inputs.items() if k in allowed_keys}
+    return {k: v for k, v in user_inputs.items() if k in allowed_keys}
+
+def simulate_all_scenarios(user_inputs):
+    scenarios = ["HODL", "Miners Only", "BTC Loan", "Hybrid"]
+    filtered_inputs = filter_simulate_inputs(user_inputs)
     
     all_results = []
     for scenario in scenarios:
+        # Pass scenario explicitly, other args unpacked from filtered inputs
         result = simulate_scenario(scenario=scenario, **filtered_inputs)
         all_results.extend(result)
     return pd.DataFrame(all_results)
+
+def simulate_single_scenario(scenario, user_inputs):
+    filtered_inputs = filter_simulate_inputs(user_inputs)
+    return pd.DataFrame(simulate_scenario(scenario=scenario, **filtered_inputs))

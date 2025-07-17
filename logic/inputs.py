@@ -31,7 +31,7 @@ def get_user_inputs(df_miners: pd.DataFrame, live_btc_price: Optional[float] = N
 
 
     initial_investment = st.sidebar.number_input("Initial Investment ($)", value=100_000.0, step=100_000.0)
-    electricity_rate = st.sidebar.number_input("Electricity Rate ($/kWh)", value=0.01)
+    electricity_rate = st.sidebar.number_input("Electricity Rate ($/kWh)", value=0.01, step=0.01)
     years = st.sidebar.slider("Years to Simulate", 1, 40, 30)
     block_rewards = [50 / (2 ** i) for i in range(33)]  # [50, 25, 12.5, ..., ~0.0488]
     block_reward = st.sidebar.selectbox("Block Reward (BTC)", block_rewards, index=4, format_func=lambda x: f"{x:.8f}")
@@ -64,5 +64,5 @@ def get_user_inputs(df_miners: pd.DataFrame, live_btc_price: Optional[float] = N
         "btc_cagr": btc_cagr,
         "miner_cost": miner_cost,
         "miner_hashrate_ths": miner_hashrate,
-        "miner_power_kw": miner_power
+        "miner_power_kw": miner_power,
     }

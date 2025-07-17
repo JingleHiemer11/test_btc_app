@@ -23,7 +23,7 @@ column_config = {
     "excost_per_hash": st.column_config.NumberColumn("Expected Cost/Hash", format="$%.2f"),
     "price_diff_usd": st.column_config.NumberColumn("Price Diff (USD)", format="$%.2f"),
     "price_diff_pct": st.column_config.NumberColumn("Price Diff (%)", format="%.1f%%"),
-    "daily_btc_mined": st.column_config.NumberColumn("BTC Mined (Daily)", format="%.8f"),
+    "btc_mined": st.column_config.NumberColumn("BTC Mined (Daily)", format="%.8f"),
 
         # ✅ New Financial Metrics
     "annual_profit": st.column_config.NumberColumn("Annual Profit", format="$%.2f"),
