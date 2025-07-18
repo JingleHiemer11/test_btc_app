@@ -10,20 +10,27 @@ def simulate_scenario(
     btc_price: float,
     electricity_rate: float,
     years: int,
-    block_reward: float,
     miner_cost: float,
     miner_hashrate_ths: float,
     miner_power_kw: float,
     network_hashrate_ehs: float,
     btc_cagr: float,
+    start_year: int = 2026,
     difficulty: float = None,
     fees_btc: float = 0.025,
-    uptime: float = 0.95
+    uptime: float = 0.95,
+    block_reward: float = 50.0
 ):
     BLOCKS_PER_DAY = 144
     DAYS_PER_YEAR = 365
     HALVING_INTERVAL = 4
     NETWORK_GROWTH = 1.10
+    GENESIS_YEAR = 2009  # mining started in early 2009
+    FIRST_HALVING_YEAR = 2012
+    HALVING_INTERVAL = 4
+
+    # Calculate initial halvings at start_year
+    initial_halvings = max(0, (start_year - FIRST_HALVING_YEAR) // HALVING_INTERVAL)
 
     miner_count = 0
     btc_held = 0.0
@@ -57,8 +64,11 @@ def simulate_scenario(
     yearly_profits = []
 
     for year in range(1, years + 1):
-        halvings_passed = (year - 1) // HALVING_INTERVAL
-        reward = block_reward / (2 ** halvings_passed)
+        calendar_year = start_year + (year - 1)
+        halvings_passed = max(0, (calendar_year - FIRST_HALVING_YEAR) // HALVING_INTERVAL)
+        halving_diff = halvings_passed - initial_halvings
+        reward = block_reward / (2 ** halving_diff) if halving_diff >= 0 else block_reward * (2 ** abs(halving_diff))
+
 
         if difficulty is not None and difficulty > 0:
 
@@ -103,7 +113,8 @@ def simulate_scenario(
             "daily_btc_mined": daily_btc_mined,
             "Energy Cost ($)": energy_cost,
             "ROI ($)": roi,
-            "CAGR (%)": cagr
+            "CAGR (%)": cagr,
+            "Calendar Year": start_year + year - 1
         })
 
     # After yearly results, calculate long-term metrics:
@@ -144,14 +155,15 @@ def filter_simulate_inputs(user_inputs):
         "btc_price",
         "electricity_rate",
         "years",
-        "block_reward",
         "miner_cost",
         "miner_hashrate_ths",
         "miner_power_kw",
         "network_hashrate_ehs",
         "btc_cagr",
         "difficulty",
-        "fees_btc"
+        "fees_btc",
+        "start_year",
+        "block_reward"
     }
     return {k: v for k, v in user_inputs.items() if k in allowed_keys}
 

@@ -3,6 +3,7 @@
 from typing import Optional, Dict, Any
 import streamlit as st
 import pandas as pd
+import datetime
 
 for key in st.session_state.keys():
     del st.session_state[key]
@@ -31,12 +32,18 @@ def get_user_inputs(df_miners: pd.DataFrame, live_btc_price: Optional[float] = N
         difficulty = None  # Placeholder until API connected
         st.sidebar.markdown(f"**Live Difficulty:** *(Not available — API not connected)*")
 
-
+    # Simulation Parameters
     initial_investment = st.sidebar.number_input("Initial Investment ($)", value=100_000.0, step=100_000.0)
     electricity_rate = st.sidebar.number_input("Electricity Rate ($/kWh)", value=0.01, step=0.01)
     years = st.sidebar.slider("Years to Simulate", 1, 40, 30)
-    block_rewards = [50 / (2 ** i) for i in range(33)]  # [50, 25, 12.5, ..., ~0.0488]
-    block_reward = st.sidebar.selectbox("Block Reward (BTC)", block_rewards, index=4, format_func=lambda x: f"{x:.8f}")
+    
+    # Start year & dynamic block reward
+    current_year = datetime.datetime.now().year
+    start_year = st.sidebar.slider("Scenario Start Year", min_value=2009, max_value=2140, value=current_year + 1)
+    halvings_passed = max(0, (start_year - 2009) // 4)
+    block_reward = 50 / (2 ** halvings_passed)
+    st.sidebar.markdown(f"📉 **Block Reward in {start_year}: {block_reward:.8f} BTC**")
+    
     network_hashrate_ehs = st.sidebar.number_input("Network Hashrate (EH/s)", value=1000.0)
     fees_btc = st.sidebar.number_input("Daily Network Fees (BTC)", value=0.025, step=0.001, format="%.3f", key="fees_btc")
     btc_cagr = st.sidebar.number_input("BTC CAGR (%)", value=15.0)
@@ -59,6 +66,7 @@ def get_user_inputs(df_miners: pd.DataFrame, live_btc_price: Optional[float] = N
         "initial_investment": initial_investment,
         "electricity_rate": electricity_rate,
         "years": years,
+        "start_year": start_year,
         "block_reward": block_reward,
         "network_hashrate_ehs": network_hashrate_ehs,
         "difficulty": difficulty,
