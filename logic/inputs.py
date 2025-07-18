@@ -1,3 +1,5 @@
+#inputs.py
+
 from typing import Optional, Dict, Any
 import streamlit as st
 import pandas as pd
@@ -24,7 +26,7 @@ def get_user_inputs(df_miners: pd.DataFrame, live_btc_price: Optional[float] = N
     # Show Difficulty input only if Manual selected
     if hashrate_mode == "Manual (Difficulty)":
         difficulty_t = st.sidebar.number_input("Network Difficulty (T)", value=115.00, step=1.00)
-        difficulty = difficulty_t * 1e12 * 1.3768
+        difficulty = difficulty_t * 1e12
     else:
         difficulty = None  # Placeholder until API connected
         st.sidebar.markdown(f"**Live Difficulty:** *(Not available — API not connected)*")

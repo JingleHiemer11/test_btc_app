@@ -1,4 +1,4 @@
-#Normalize data
+#cleaning.py
 
 import pandas as pd
 
@@ -39,8 +39,12 @@ def clean_and_normalize(df):
             df["margin_percent"].replace('%', '', regex=True).astype(float)
         )
 
-    if "price_diff_pct" in df.columns:
-        df["price_diff_pct"] = df["price_diff_pct"].astype(float) * 100
+    if "price_diff_usd" not in df.columns and "expected_cost" in df.columns:
+        df["price_diff_usd"] = (df["expected_cost"] - df["cost"])
+
+    if "price_diff_pct" not in df.columns and "expected_cost" in df.columns:
+        df["price_diff_pct"] = ((df["expected_cost"]) / df["cost"].replace(0, np.nan)) * 100
+        df["price_diff_pct"] = df["price_diff_pct"].fillna(0)  # Avoid NaN if cost was zero
     
     # Clean directly numeric columns
     numeric_cols = ['power', 'hashrate', 'efficiency', 'noise_level', 'break_even']

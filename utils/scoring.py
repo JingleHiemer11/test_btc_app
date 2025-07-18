@@ -18,8 +18,12 @@ def calculate_miner_scores(df: pd.DataFrame, weights: dict) -> pd.DataFrame:
     if "margin" not in df.columns and "daily_revenue" in df.columns:
         df["margin"] = (df["daily_profit"] / df["daily_revenue"]) * 100
 
+    if "price_diff_usd" not in df.columns and "expected_cost" in df.columns:
+        df["price_diff_usd"] = (df["expected_cost"] - df["cost"])
+
     if "price_diff_pct" not in df.columns and "expected_cost" in df.columns:
-        df["price_diff_pct"] = (df["expected_cost"] / df["cost"]) * 100
+        df["price_diff_pct"] = ((df["expected_cost"]) / df["cost"].replace(0, np.nan)) * 100
+        df["price_diff_pct"] = df["price_diff_pct"].fillna(0)  # Avoid NaN if cost was zero
 
     df = df.dropna(subset=["efficiency", "daily_profit", "cost", "margin"]).copy()
 

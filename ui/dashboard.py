@@ -1,3 +1,5 @@
+#dashboard.py
+
 def run_dashboard():
     import datetime
     import pandas as pd
@@ -15,22 +17,45 @@ def run_dashboard():
     from ui.column_config import scenario_column_config
     from utils.cleaning import clean_and_normalize
     from utils.scoring import calculate_miner_scores
+    from utils.metrics import calculate_profitability_metrics
     from logic.inputs import get_user_inputs
     from logic.simulate import simulate_all_scenarios
-
-    csv_path = "Book123.csv"
     
-    if os.path.exists(csv_path):
-        df = clean_and_normalize(pd.read_csv(csv_path))
-        # Safely convert power from watts to kilowatts if available
-        if "power" in df.columns:
-            df["power_kw"] = df["power"] / 1000
-        else:
-            st.warning("⚠️ 'power' column not found. Using default power input if provided.")
-            df["power_kw"] = np.nan  # or a default like 3.4 if you want
-    else:
-        df = pd.DataFrame()  # empty df fallback
+    df = load_data()  # loads, cleans, renames, power → power_kw
 
+    if df.empty:
+        st.warning("No miner data loaded. Upload CSV or add miners manually.")
+
+    def update_miner_revenue_profit(df, btc_price, electricity_rate, usd_per_th_per_day=None):
+        df = df.copy()
+
+        # If you have a live usd_per_th_per_day from hashprice API, use that,
+        # else estimate it from btc_price and a rough factor.
+        if usd_per_th_per_day is None:
+            # Rough estimate: assume BTC mining yields ~0.06 USD per TH/s/day at btc_price=30k,
+            # scale linearly with btc_price:
+            base_btc_price = 100000
+            base_usd_per_th_per_day = 0.06
+            usd_per_th_per_day = base_usd_per_th_per_day * (btc_price / base_btc_price)
+
+        st.write(f"BTC Price used: {btc_price}")
+        st.write(f"USD per TH per day: {usd_per_th_per_day}")
+        st.write(f"Sample miner hashrate (TH/s): {df['hashrate_ths'].iloc[0] if not df.empty else 'No data'}")
+
+
+        # Calculate daily revenue ($)
+        df["daily_revenue"] = df["hashrate_ths"] * usd_per_th_per_day
+
+        # Calculate daily electricity cost ($)
+        df["daily_cost"] = df["power_kw"] * 24 * electricity_rate
+
+        # Calculate daily profit ($)
+        df["daily_profit"] = df["daily_revenue"] - df["daily_cost"]
+
+        # Profit margin (%)
+        df["margin_percent"] = 100 * df["daily_profit"] / df["daily_revenue"].replace(0, 1)  # avoid div by zero
+        return df
+    
     st.title("Bitcoin Miner Scraper & Dashboard")
 
     # === Live Bitcoin Price Chart ===
@@ -56,8 +81,8 @@ def run_dashboard():
         df = clean_and_normalize(pd.read_csv(uploaded_file))
 
     # Prepare df_miner_db for inputs and scenarios
-    df_miner_db = df[["model", "cost", "hashrate", "power"]].dropna().copy()
-    df_miner_db["power_kw"] = df_miner_db["power"] / 1000  # watts to kilowatts
+    df_miner_db = df[["model", "cost", "hashrate_ths", "power_kw"]].dropna().copy()
+    df_miner_db["model"] = df_miner_db["model"].str.strip().str.lower()
     df_miner_db.rename(columns={"hashrate": "hashrate_ths"}, inplace=True)
     #df_miner_db.drop(columns=["power"], inplace=True)
     
@@ -80,95 +105,51 @@ def run_dashboard():
     else:
         st.sidebar.markdown("⚠️ Unable to fetch live hashprice")
 
-    # Calculate dynamic metrics based on availability of hashprice
-    if usd_per_th_per_day is not None:
-        # Calculate revenue directly from hashprice
-        df["daily_revenue"] = df["hashrate"] * usd_per_th_per_day
+    # Update miner data with fresh revenue & profit based on current btc price & electricity
+    df = update_miner_revenue_profit(
+        df,
+        btc_price=user_inputs["btc_price"],
+        electricity_rate=user_inputs["electricity_rate"],
+        usd_per_th_per_day=usd_per_th_per_day  # from live hashprice API if available
+    )
 
-        # Calculate electricity cost
-        if "power" in df.columns:
-            df["power_kw"] = df["power"] / 1000
-        else:
-            df["power_kw"] = np.nan  # or a default like 3.4
-        df["daily_electric_cost"] = df["power_kw"] * 24 * user_inputs["electricity_rate"] * 0.95
+    df_scenarios = simulate_all_scenarios(user_inputs)
+    df_scenarios["Scenarios"] = df_scenarios["Scenario"].str.strip().str.lower()
+    # Rename miner columns for consistency in downstream calculations
+    rename_map = {
+        "miner_cost": "cost",
+        "miner_power_kw": "power_kw",
+        "miner_hashrate_ths": "hashrate_ths"
+    }
+    for old_col, new_col in rename_map.items():
+        df_scenarios[new_col] = df_scenarios.get(old_col, np.nan)
 
-        # Profit and break-even
-        df["daily_profit"] = df["daily_revenue"] - df["daily_electric_cost"]
-        df["break_even"] = df.apply(
-            lambda row: (row["cost"] / row["daily_profit"] / 30) if row["daily_profit"] > 0 else None,
-            axis=1
-        )
-    else:
-        # Fallback to difficulty-based calculation
-        def calculate_dynamic_metrics(df, btc_price, electricity_rate, difficulty, block_reward_btc, fees_btc, uptime=0.95):
-            print("DEBUG: df.columns = ", df.columns.tolist())
-            df = df.copy()
-            if "power" in df.columns and "power_kw" not in df.columns:
-                df["power_kw"] = df["power"] / 1000
-
-            df["daily_revenue"] = df["daily_btc_mined"] * btc_price
-            df["daily_electric_cost"] = df["power_kw"] * 24 * electricity_rate * uptime
-            df["daily_profit"] = df["daily_revenue"] - df["daily_electric_cost"]
-            df["break_even"] = df.apply(
-                lambda row: (row["cost"] / row["daily_profit"] / 30) if row["daily_profit"] > 0 else None,
-                axis=1
-            )
-            
-            # ---- Financial Metrics ----
-            df["annual_profit"] = df["daily_profit"] * 365
-            df["irr_1yr"] = (df["annual_profit"] - df["cost"]) / df["cost"]
-            df["ppi_1yr"] = df["annual_profit"] / df["cost"]
-            df["cpbm"] = df.apply(
-                lambda row: (row["cost"] / (row["daily_btc_mined"])) if row["daily_btc_mined"] > 0 else None,
-                axis=1
-            )
-
-            return df
-
-        df_scenarios = simulate_all_scenarios(user_inputs)
-        st.write("DEBUG: df_scenarios columns:", df_scenarios.columns.tolist())
-        # Standardize model column casing for safe merge
-        df_scenarios["Scenarios"] = df_scenarios["Scenario"].str.strip().str.lower()
-        df_miner_db["model"] = df_miner_db["model"].str.strip().str.lower()
-
-        # Add 'power' from df_miner_db based on the selected miner model
-        if "model" in df_scenarios.columns and "model" in df_miner_db.columns:
-            df_scenarios = pd.merge(
-                df_scenarios,
-                df_miner_db[["model", "power", "power_kw", "cost"]],
-                on="model",
-                how="left"
-            )
-        else:
-            st.warning("⚠️ Could not merge power data into scenario simulations.")
-
-        df_scenarios = calculate_dynamic_metrics(
-            df_scenarios,
-            btc_price=user_inputs["btc_price"],
-            electricity_rate=user_inputs["electricity_rate"],
-            difficulty=user_inputs["difficulty"],
-            block_reward_btc=user_inputs["block_reward"],
-            fees_btc=user_inputs["fees_btc"],
-            uptime=0.95
-        )
+    df_scenarios = calculate_profitability_metrics(
+        df_scenarios,
+        btc_price=user_inputs["btc_price"],
+        electricity_rate=user_inputs["electricity_rate"],
+        difficulty=user_inputs.get("difficulty"),
+        block_reward_btc=user_inputs.get("block_reward_btc"),
+        fees_btc=user_inputs.get("fees_btc"),
+        usd_per_th_per_day=user_inputs.get("usd_per_th_per_day"),
+    )
 
     # --- Miner Data Section (AFTER metrics update) ---
     st.subheader("📋 Current Miner Database (with dynamic profit & cost)")
-
+    columns_to_hide = ["power_kw", "daily_electric_cost"]  # define here or earlier
     if not df.empty:
-        columns_to_hide = ["power_kw", "daily_electric_cost"]
         df_display = df.drop(columns=[col for col in columns_to_hide if col in df.columns])
         st.dataframe(df_display, column_config=column_config, use_container_width=True)
     else:
         st.info("No miner data available. Upload CSV or add miners manually.")
-
+    
     # --- Add Miner Manually ---
     st.markdown("Upload your miner CSV, scrape specs, or add miners manually.")
     st.subheader("➕ Add a Miner Manually")
     with st.form("add_miner_form"):
         model = st.text_input("Model")
         manufacturer = st.text_input("Manufacturer")
-        hashrate = st.number_input("Hashrate (TH/s)", step=0.1)
+        hashrate_ths = st.number_input("Hashrate (TH/s)", step=0.1)
         power = st.number_input("Power (W)", step=1)
         release_year = st.number_input("Release Year", step=1, format="%d")
         submitted = st.form_submit_button("Add Miner")
@@ -177,9 +158,9 @@ def run_dashboard():
             new_data = {
                 "Model": model,
                 "Manufacturer": manufacturer,
-                "Hashrate (TH/s)": hashrate,
+                "Hashrate (TH/s)": hashrate_ths,
                 "Power (W)": power,
-                "Efficiency (J/TH)": round(power / hashrate, 2) if hashrate else None,
+                "Efficiency (J/TH)": round(power / hashrate_ths, 2) if hashrate_ths else None,
                 "Release Year": release_year
             }
             msg = update_csv(new_data)
@@ -190,7 +171,7 @@ def run_dashboard():
     if st.button("Scrape Specs for All Models"):
         enriched_df = df.copy()
         for idx, row in enriched_df.iterrows():
-            model = row.get("Model") or row.get("Model Name")
+            model = row.get("model") or row.get("Model") or row.get("Model Name")
             if not model or not isinstance(model, str) or model.strip() == "":
                 continue
             st.write(f"Scraping: {model}...")
@@ -204,6 +185,10 @@ def run_dashboard():
         st.success("✅ Specs scraped and updated.")
         st.dataframe(enriched_df)
 
+    # Save updated miner DB with dynamic revenue/profit to CSV
+    if "daily_revenue" in df.columns and "daily_profit" in df.columns:
+        df.to_csv("Book123.csv", index=False)
+    
     # --- Export CSV ---
     st.subheader("⬇️ Download Updated Miner List")
     csv_data = df.to_csv(index=False).encode("utf-8")
@@ -213,8 +198,10 @@ def run_dashboard():
     st.subheader("📊 Miner Comparison Charts")
 
     if not df.empty:
-        st.markdown("**Hashrate vs Power Consumption**")
-        fig1 = px.scatter(df, x="power", y="hashrate", color="model", hover_data=["release_date"])
+        st.markdown("**Hashrate (TH/s) vs Power Consumption**")
+        if "release_date" in df.columns:
+            df["release_year"] = pd.to_datetime(df["release_date"], format="%y-%b", errors="coerce").dt.year
+        fig1 = px.scatter(df, x="power_kw", y="hashrate_ths", color="model", hover_data=["release_year"])
         st.plotly_chart(fig1, use_container_width=True)
 
         st.markdown("**Miner Efficiency (J/TH)**")
@@ -250,17 +237,6 @@ def run_dashboard():
     # === BTC Investment Scenario Simulator ===
     st.subheader("💡 BTC Investment Strategy Simulator")
 
-    if not df.empty:
-        df_miner_db = df[["model", "cost", "hashrate", "power"]].dropna().copy()
-        df_miner_db["power_kw"] = df_miner_db["power"] / 1000  # Convert Watts to kW
-        df_miner_db.rename(columns={"hashrate": "hashrate_ths"}, inplace=True)
-        df_miner_db.drop(columns=["power"], inplace=True)
-    else:
-        st.warning("⚠️ No valid miner data available. Please upload or enter at least one miner to continue.")
-        return
-    
-    df_scenarios = simulate_all_scenarios(user_inputs)
-
     selected_strategies = st.multiselect(
         "Select strategy/scenarios to compare",
         options=df_scenarios["Scenario"].unique().tolist(),
@@ -294,3 +270,7 @@ def run_dashboard():
         st.dataframe(df_filtered, column_config=scenario_column_config, use_container_width=True)
     else:
         st.warning("⚠️ No scenario data to display or selected.")
+
+    if df_scenarios.empty:
+        st.warning("No scenario simulation results. Check inputs or try again.")
+        return
